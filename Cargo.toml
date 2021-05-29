@@ -1,0 +1,20 @@
+[package]
+name = "rusty-sandwich"
+version = "0.1.0"
+authors = ["nathan <nathancworsley@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+# General
+ethers = { git = "https://github.com/gakonst/ethers-rs" }
+tokio = { version = "1.0.2", features = ["macros", "rt-multi-thread"] }
+
+# Logging
+log = "0.4.14"
+pretty_env_logger = "0.4.0"
+
+# Command line arguments
+gumdrop = "0.8.0"
+
+# Error logging
+anyhow = "1.0.37"
