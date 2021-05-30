@@ -1,17 +1,17 @@
 use gumdrop::Options;
 use ethers::{
-    providers::{Middleware, Provider, Http, StreamExt},
+    providers::{Middleware, Provider, Ws, StreamExt},
 };
 use std::io::Write;
-use std::{convert::TryFrom, sync::Arc};
+use std::{sync::Arc};
 
 #[derive(Debug, Options, Clone)]
 struct Opts {
     help: bool,
 
     #[options(
-        default = "http://localhost:8545",
-        help = "Node URL"
+        default = "ws://localhost:8546",
+        help = "Node Websocket URL"
     )]
     url: String,
 }
@@ -23,7 +23,7 @@ async fn main() -> anyhow::Result<()> {
 
     println!("[rusty-sandwich]");
 
-    let provider = Provider::<Http>::try_from(opts.url.as_str())?;
+    let provider = Provider::<Ws>::connect(opts.url.as_str()).await?;
     run(provider).await    
 }
 
