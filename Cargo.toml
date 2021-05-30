@@ -1,5 +1,5 @@
 [package]
-name = "rusty-sandwich"
+name = "pending-stream"
 version = "0.1.0"
 authors = ["nathan <nathancworsley@gmail.com>"]
 edition = "2018"

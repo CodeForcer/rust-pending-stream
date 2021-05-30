@@ -1,9 +1,10 @@
 use gumdrop::Options;
 use ethers::{
     providers::{Middleware, Provider, Ws, StreamExt},
+    types::{TxHash},
 };
-use std::io::Write;
-use std::{sync::Arc};
+use tokio::sync::mpsc;
+use tokio::sync::mpsc::{Receiver};
 
 #[derive(Debug, Options, Clone)]
 struct Opts {
@@ -16,26 +17,47 @@ struct Opts {
     url: String,
 }
 
+async fn resolve(mut receiver: Receiver<TxHash>) -> anyhow::Result<()> {
+    let opts = Opts::parse_args_default_or_exit();
+
+    let provider = Provider::<Ws>::connect(opts.url.as_str()).await?;
+    let mut count: i32 = 0;
+
+    while let Some(hash) = receiver.recv().await {
+        let tx = provider.get_transaction(hash).await.unwrap();
+        if tx.is_none() {
+            continue;
+        }
+        println!("{} {:?}", count, hash);
+        count = count + 1;
+    }
+
+    Ok(())
+}
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     pretty_env_logger::init();
     let opts = Opts::parse_args_default_or_exit();
 
-    println!("[rusty-sandwich]");
+    println!("[pending-stream]");
 
     let provider = Provider::<Ws>::connect(opts.url.as_str()).await?;
-    run(provider).await    
-}
-
-async fn run<M: Middleware + Clone + 'static>(provider: M) -> anyhow::Result<()> {
-    let provider = Arc::new(provider);
 
     let mut watcher = provider.watch_pending_transactions().await?;
-    while watcher.next().await.is_some() {
-        let block = provider.get_block_number().await?;
-        let stdout = std::io::stdout();
-        let mut lock = stdout.lock();
-        writeln!(lock, "Got block: {}", block.as_u64())?;
+
+    let (sender, receiver) = mpsc::channel(1_000_000);
+
+    tokio::spawn(async move {
+        resolve(receiver).await.ok();
+    });
+
+    while let Some(hash) = watcher.next().await {
+        let sender_internal = sender.clone();
+
+        tokio::spawn(async move {
+            sender_internal.send(hash).await.ok();
+        });
     }
 
     Ok(())

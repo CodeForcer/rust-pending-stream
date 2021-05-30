@@ -1,5 +1,3 @@
-# Rusty-sandwich
-
 ## Installation
 
 ```
