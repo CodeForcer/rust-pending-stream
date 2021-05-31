@@ -3,7 +3,8 @@ use ethers::{
     providers::{Middleware, Provider, Ws, StreamExt},
 };
 use std::ops::Not;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc};
+use std::sync::atomic::{AtomicI32,Ordering};
 
 #[derive(Debug, Options, Clone)]
 struct Opts {
@@ -28,19 +29,19 @@ async fn main() -> anyhow::Result<()> {
 
     let mut watcher = provider.watch_pending_transactions().await?;
 
-    let count = Arc::new(Mutex::new(0));
-
+    let count = Arc::new(AtomicI32::new(0));
+    
     while let Some(hash) = watcher.next().await {
         let provider = Arc::clone(&provider);
 
-        let count = Arc::clone(&count);
+        let count = Arc::clone(&count);        
 
         tokio::spawn(async move {
             let tx = provider.get_transaction(hash).await.unwrap();
+            let number = count.fetch_add(1, Ordering::SeqCst);
             if tx.is_none().not() {
-                println!("{} {:?}", *count.lock().unwrap(), hash);
+                println!("{} {:?}", number, hash);
             }
-            *count.lock().unwrap() += 1;
         });
     }
 
