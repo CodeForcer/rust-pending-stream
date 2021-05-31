@@ -27,8 +27,7 @@ async fn main() -> anyhow::Result<()> {
     let provider = Provider::<Ws>::connect(opts.url.as_str()).await?;
     let provider = Arc::new(provider);
 
-    let mut watcher = provider.watch_pending_transactions().await?;
-
+    let mut watcher = provider.subscribe_pending_txs().await?;
     let count = Arc::new(AtomicI32::new(0));
     
     while let Some(hash) = watcher.next().await {
