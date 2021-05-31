@@ -1,8 +1,9 @@
 use gumdrop::Options;
 use ethers::{
-    providers::{Middleware, Provider, Ws, StreamExt},
+    providers::{Middleware, Provider, Http, StreamExt},
 };
 use std::ops::Not;
+use std::convert::TryFrom;
 use std::sync::{Arc};
 use std::sync::atomic::{AtomicI32,Ordering};
 
@@ -11,7 +12,7 @@ struct Opts {
     help: bool,
 
     #[options(
-        default = "ws://localhost:8546",
+        default = "http://localhost:8545",
         help = "Node Websocket URL"
     )]
     url: String,
@@ -24,7 +25,9 @@ async fn main() -> anyhow::Result<()> {
 
     println!("[pending-stream]");
 
-    let provider = Provider::<Ws>::connect(opts.url.as_str()).await?;
+    let provider = Provider::<Http>::try_from(
+        opts.url.as_str()
+    )?;
     let provider = Arc::new(provider);
 
     let mut watcher = provider.watch_pending_transactions().await?;
@@ -37,7 +40,10 @@ async fn main() -> anyhow::Result<()> {
         let count = Arc::clone(&count);        
 
         tokio::spawn(async move {
-            let tx = provider.get_transaction(hash).await.unwrap();
+            let tx = provider.get_transaction(hash).await.map_err(|err| {
+                println!("aborting: {:?}", err);
+                ::std::process::abort()
+            }).ok();
             let number = count.fetch_add(1, Ordering::SeqCst);
             if tx.is_none().not() {
                 println!("{} {:?}", number, hash);
