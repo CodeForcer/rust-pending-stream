@@ -1,10 +1,9 @@
 use gumdrop::Options;
 use ethers::{
     providers::{Middleware, Provider, Ws, StreamExt},
-    types::{TxHash},
 };
-use tokio::sync::mpsc;
-use tokio::sync::mpsc::{Receiver};
+use std::ops::Not;
+use std::sync::{Arc, Mutex};
 
 #[derive(Debug, Options, Clone)]
 struct Opts {
@@ -17,24 +16,6 @@ struct Opts {
     url: String,
 }
 
-async fn resolve(mut receiver: Receiver<TxHash>) -> anyhow::Result<()> {
-    let opts = Opts::parse_args_default_or_exit();
-
-    let provider = Provider::<Ws>::connect(opts.url.as_str()).await?;
-    let mut count: i32 = 0;
-
-    while let Some(hash) = receiver.recv().await {
-        let tx = provider.get_transaction(hash).await.unwrap();
-        if tx.is_none() {
-            continue;
-        }
-        println!("{} {:?}", count, hash);
-        count = count + 1;
-    }
-
-    Ok(())
-}
-
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     pretty_env_logger::init();
@@ -43,20 +24,23 @@ async fn main() -> anyhow::Result<()> {
     println!("[pending-stream]");
 
     let provider = Provider::<Ws>::connect(opts.url.as_str()).await?;
+    let provider = Arc::new(provider);
 
     let mut watcher = provider.watch_pending_transactions().await?;
 
-    let (sender, receiver) = mpsc::channel(1_000_000);
-
-    tokio::spawn(async move {
-        resolve(receiver).await.ok();
-    });
+    let count = Arc::new(Mutex::new(0));
 
     while let Some(hash) = watcher.next().await {
-        let sender_internal = sender.clone();
+        let provider = Arc::clone(&provider);
+
+        let count = Arc::clone(&count);
 
         tokio::spawn(async move {
-            sender_internal.send(hash).await.ok();
+            let tx = provider.get_transaction(hash).await.unwrap();
+            if tx.is_none().not() {
+                println!("{} {:?}", *count.lock().unwrap(), hash);
+            }
+            *count.lock().unwrap() += 1;
         });
     }
 
