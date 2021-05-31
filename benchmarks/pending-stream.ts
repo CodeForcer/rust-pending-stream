@@ -25,4 +25,3 @@ main().catch((error) => {
   console.error('[EXIT WITH ERROR]', error)
   process.exit(1)
 })
-  
